@@ -5,7 +5,7 @@ class GLEDynamics():
 
     def __init__(self, conn, *, tau_m, tau_r=None, dt=None, phi=None,
                  phi_prime=None, prospective_errors=False, use_autodiff=False,
-                 learn_tau=False, gamma=0.0):
+                 learn_tau=False, gamma=0.0, dtype=torch.float32):
         super().__init__()
 
         self.dt = dt
@@ -16,7 +16,7 @@ class GLEDynamics():
             if isinstance(tau_m, torch.Tensor):
                 self.tau_m = tau_m.clone()
             else:
-                self.tau_m = torch.tensor(tau_m)
+                self.tau_m = torch.tensor(tau_m, dtype=dtype)
         else:
             raise ValueError("τ_m must be specified")
 
@@ -24,7 +24,7 @@ class GLEDynamics():
             if isinstance(tau_r, torch.Tensor):
                 self.tau_r = tau_r.clone()
             else:
-                self.tau_r = torch.tensor(tau_r)
+                self.tau_r = torch.tensor(tau_r, dtype=dtype)
         elif self.tau_m is not None:
             # default to τ_m if τ_r is not specified (LE)
             self.tau_r = self.tau_m.clone()
@@ -74,6 +74,7 @@ class GLEDynamics():
         self.next_e_bottom = None
 
         self.device = torch.device("cpu")
+        self.dtype = dtype
 
     def adjust_batch_dimension(self, batch_size):
         assert len(self.u) == len(self.v)
@@ -125,11 +126,11 @@ class GLEDynamics():
 
         inst_s = self.conn(r_bottom)
 
-        self.u = torch.zeros(inst_s.shape, device=self.device)
-        self.v = torch.zeros(inst_s.shape, device=self.device)
-        self.r = torch.zeros(inst_s.shape, device=self.device)
-        self.r_prime = torch.zeros(inst_s.shape, device=self.device)
-        self.e_bottom = torch.zeros(r_bottom.shape, device=self.device)
+        self.u = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
+        self.v = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
+        self.r = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
+        self.r_prime = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
+        self.e_bottom = torch.zeros(r_bottom.shape, device=self.device, dtype=self.dtype)
         return inst_s
 
     def _detach_dynamic_variables(self):
@@ -209,6 +210,8 @@ class GLEDynamics():
         else:
             u = inst_s + self.gamma * prosp_v
             prosp_u = inst_s + self.gamma * prosp_v
+
+        assert torch.all(torch.isfinite(u)), breakpoint()
 
         # populate gradients for this layer
         if not self.use_autodiff:

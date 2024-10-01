@@ -102,10 +102,10 @@ def get_fig_kwargs():
 #
 
 # with correct BPTT implementation
-ids = ["bp", "gle", "bptt_tw4", "bptt_tw2", "bptt_tw1"]  # PE, 0, 400, 200, 100 with Adam and log_interval = 10
+ids = ["bp", "gle", "bptt_tw4", "bptt_tw2", "bptt_tw1", "gle_half"]  # PE, 0, 400, 200, 100 with Adam and log_interval = 10
 data = [pd.read_pickle(f"../results/lagline/{i}_metrics.pkl") for i in ids]
-labels = ["BP(TT)", "GLE", "BPTT (TW=4)", "BPTT (TW=2)", "BPTT (TW=1)"]
-linestyle = ["--", "-", ",", ",", ","]
+labels = ["BP(TT)", "GLE", "BPTT (TW=4)", "BPTT (TW=2)", "BPTT (TW=1)", "GLE(half)"]
+linestyle = ["--", "-", ",", ",", ",", "-"]
 param_ls = ('--', '-')
 
 # windows to plot
@@ -278,8 +278,8 @@ def plot_weights(ax):
     end = after[1]
 
     # [IE, GLE, BPTT]
-    param_colors = ["C4", "C2", "C1", "C5", "C6"]
-    windows = [1, 1, 40, 20, 10]
+    param_colors = ["C4", "C2", "C1", "C5", "C6", "r"]
+    windows = [1, 1, 40, 20, 10, 40]
 
     step_width = int(2 / 0.01)
     for idx, (d, l, c, w) in enumerate(zip(data, labels, param_colors, windows)):
@@ -304,8 +304,8 @@ def plot_tau_m(ax):
     start = before[0]
     end = after[1]
 
-    param_colors = ["C4", "C2", "C1", "C5", "C6"]
-    windows = [1, 1, 40, 20, 10]
+    param_colors = ["C4", "C2", "C1", "C5", "C6", "r"]
+    windows = [1, 1, 40, 20, 10, 40]
 
     step_width = int(2 / 0.01)
     for idx, (d, l, c, w) in enumerate(zip(data, labels, param_colors, windows)):
@@ -329,10 +329,10 @@ def plot_loss(ax):
     start = before[0]
     end = after[1]
 
-    param_colors = ["C4", "C2", "C1", "C5", "C6"]
+    param_colors = ["C4", "C2", "C1", "C5", "C6", "r"]
     # windows = [1, 1, 40, 20, 10]  # actual window length
-    windows = [40, 40, 40, 40, 40]  # average all over 40 steps
-    linestyles = ['--', '-', ',', ',', ',']
+    windows = [40, 40, 40, 40, 40, 40]  # average all over 40 steps
+    linestyles = ['--', '-', ',', ',', ',', '-']
 
     for d, l, c, w , ls in zip(data, labels, param_colors, windows, linestyles):
         # plot average over window steps

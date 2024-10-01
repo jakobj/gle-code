@@ -5,13 +5,14 @@ from lib.gle.dynamics import GLEDynamics
 
 class GLEAbstractNet:
 
-    def __init__(self, *, full_forward=False, full_backward=False):
+    def __init__(self, *, full_forward=False, full_backward=False, dtype=torch.float32):
         super().__init__()
 
         self.use_le = True
         self.full_forward = full_forward
         self.full_backward = full_backward
         self.device = torch.device('cpu')
+        self.dtype = dtype
 
         if self.full_forward or self.full_backward:
             print('Warning: full_forward and full_backward are deprecated and might not work as expected in combination with synaptic filters.')
@@ -33,7 +34,7 @@ class GLEAbstractNet:
         will be set to zero.
 
         """
-        x = torch.empty(shape, device=self.device).normal_()
+        x = torch.empty(shape, device=self.device, dtype=self.dtype).normal_()
         for layer in self.children_with_dynamics():
             x = layer.initialize_dynamic_variables_to_zero(x)
 
@@ -66,6 +67,7 @@ class GLEAbstractNet:
                 yield name, value
 
     def forward(self, x, target=None, *, beta=0.0):
+        assert torch.all(torch.isfinite(x))
 
         if self.is_not_initialized():
             self._initialize_dynamic_variables(x.shape)
@@ -109,6 +111,7 @@ class GLEAbstractNet:
 
                 layers[layer_idx].update_dynamic_variables()
 
+        assert torch.all(torch.isfinite(output)), breakpoint()
         return output
 
     def _apply(self, fn):
@@ -117,6 +120,7 @@ class GLEAbstractNet:
             layer._apply(fn)
 
         self.device = layer.device
+        self.dtype = layer.dtype
         return self
 
     def named_dynamic_modules(self, memo=None, prefix='', remove_duplicate=True):

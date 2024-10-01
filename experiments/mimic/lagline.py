@@ -12,32 +12,32 @@ from lib.utils import get_loss_and_derivative
 class LagLine(GLEAbstractNet, torch.nn.Module):
 
     def __init__(self, *, tau_m, tau_r, dt, gamma=1.0, bias=False,
-                 prospective_errors=False, use_autodiff=False):
-        super().__init__()
+                 prospective_errors=False, use_autodiff=False, dtype=torch.float32):
+        super().__init__(dtype=dtype)
 
-        self.tau_m_0 = torch.tensor([tau_m[0]])
-        self.tau_m_1 = torch.tensor([tau_m[1]])
-        self.tau_r = torch.tensor([tau_r])
+        self.tau_m_0 = torch.tensor([tau_m[0]], dtype=dtype)
+        self.tau_m_1 = torch.tensor([tau_m[1]], dtype=dtype)
+        self.tau_r = torch.tensor([tau_r], dtype=dtype)
 
         self.dt = dt
 
         self.phi = torch.nn.Softplus()
         self.phi_prime = lambda x: torch.sigmoid(x)
 
-        self.lin0 = GLELinear(1, 1, bias=bias)
-        self.lin1 = GLELinear(1, 1, bias=bias)
+        self.lin0 = GLELinear(1, 1, bias=bias, dtype=dtype)
+        self.lin1 = GLELinear(1, 1, bias=bias, dtype=dtype)
 
         # setup includes two slow layers
         self.lin0_dynamics = GLEDynamics(self.lin0, tau_m=self.tau_m_0, tau_r=self.tau_r,
                                          dt=self.dt, gamma=gamma, learn_tau=True,
                                          phi=self.phi, phi_prime=self.phi_prime,
                                          prospective_errors=prospective_errors,
-                                         use_autodiff=use_autodiff)
+                                         use_autodiff=use_autodiff, dtype=dtype)
         self.lin1_dynamics = GLEDynamics(self.lin1, tau_m=self.tau_m_1, tau_r=self.tau_r,
                                          dt=self.dt, gamma=gamma, learn_tau=True,
                                          phi=self.phi, phi_prime=self.phi_prime,
                                          prospective_errors=prospective_errors,
-                                         use_autodiff=use_autodiff)
+                                         use_autodiff=use_autodiff, dtype=dtype)
 
 
 if __name__ == "__main__":
@@ -49,15 +49,29 @@ if __name__ == "__main__":
         "tau_m": [1.0, 2.0],
         "tau_r": 0.1,
         "beta": 1e-2,
-        "lr": 1e-6,
         "gamma": 1.0,
         "T_init": 50,
-        "T_train": 4000,
+        "T_train": 3200,
         "LE": True,
         "batch_size": 100,
         "logging_interval": 10,
         "use_neptune": True,
     }
+
+    PRECISION = "half"
+
+    if PRECISION == "single":
+        params["dtype"] = torch.float32
+        params["lr"] = 1e-6
+        params["eps"] = 1e-8
+        params["optimizer_step_interval"] = 1
+    elif PRECISION == "half":
+        params["dtype"] = torch.float16
+        params["lr"] = 1e-5
+        params["eps"] = 1e-4
+        params["optimizer_step_interval"] = 20
+    else:
+        raise NotImplementedError()
 
     import argparse
     parser = argparse.ArgumentParser(description='Train a LagLine model.')
@@ -116,21 +130,23 @@ if __name__ == "__main__":
                     dt=params['dt'],
                     gamma=params['gamma'],
                     prospective_errors=params['prospective_errors'],
-                    use_autodiff=params['use_autodiff'])
+                    use_autodiff=params['use_autodiff'],
+                    dtype=params["dtype"])
     teacher = LagLine(tau_m=params['tau_m'],
                       tau_r=params['tau_r'],
                       dt=params['dt'],
                       gamma=params['gamma'],
                       prospective_errors=False,
-                      use_autodiff=False)
+                      use_autodiff=False,
+                      dtype=params["dtype"])
 
     # set teacher weights
-    teacher.lin0.weight.data = torch.tensor([[1.0]])
-    teacher.lin1.weight.data = torch.tensor([[2.0]])
+    teacher.lin0.weight.data = torch.tensor([[1.0]], dtype=params["dtype"])
+    teacher.lin1.weight.data = torch.tensor([[2.0]], dtype=params["dtype"])
 
     # change time constants for teacher network
-    teacher.lin0_dynamics.tau_m.data = torch.tensor([1.0], requires_grad=False)
-    teacher.lin1_dynamics.tau_m.data = torch.tensor([2.0], requires_grad=False)
+    teacher.lin0_dynamics.tau_m.data = torch.tensor([1.0], requires_grad=False, dtype=params["dtype"])
+    teacher.lin1_dynamics.tau_m.data = torch.tensor([2.0], requires_grad=False, dtype=params["dtype"])
 
     # copy teacher weights to model
     model.load_state_dict(teacher.state_dict())
@@ -149,7 +165,7 @@ if __name__ == "__main__":
     params_to_learn.append(model.lin0.weight)
     params_to_learn.append(model.lin1.weight)
 
-    optimizer = torch.optim.Adam(params_to_learn, lr=params['lr'])
+    optimizer = torch.optim.Adam(params_to_learn, lr=params['lr'], eps=params["eps"])
 
     # generate combination of sine waves
     from data.datasets import generate_input
@@ -160,15 +176,15 @@ if __name__ == "__main__":
 
     # smoothen input
     from scipy.ndimage import gaussian_filter1d
-    x = torch.tensor(gaussian_filter1d(x.numpy(), sigma=5, axis=1))
+    x = torch.tensor(gaussian_filter1d(x.numpy(), sigma=5, axis=1), dtype=params["dtype"])
 
     # set τ_m to correct values for plotting rates and errors before training
     # (see first column of Fig. 5b)
     if not params['use_autodiff']:
         τ_0 = model.lin0_dynamics.tau_m.data.clone()
         τ_1 = model.lin1_dynamics.tau_m.data.clone()
-        model.lin0_dynamics.tau_m.data = torch.tensor([1.0])
-        model.lin1_dynamics.tau_m.data = torch.tensor([2.0])
+        model.lin0_dynamics.tau_m.data = torch.tensor([1.0], dtype=params["dtype"])
+        model.lin1_dynamics.tau_m.data = torch.tensor([2.0], dtype=params["dtype"])
 
     # initialize models (without learning)
     for step in range(int(params['T_init'] / params['dt'])):
@@ -217,9 +233,11 @@ if __name__ == "__main__":
 
         with torch.no_grad():
             data_inputs, data_labels = x[:, step], teacher(x[:, step])
+            assert torch.all(torch.isfinite(data_labels))
             # data_inputs, data_labels = data_inputs.to(device), data_labels.to(device)
 
         preds = model(data_inputs, data_labels, beta=params['beta'])
+        assert torch.all(torch.isfinite(preds)), (step, preds[0])
         loss = loss_fn(preds, data_labels.float())
         loss_sum += loss
         if step % 10000 == 0:
@@ -254,7 +272,9 @@ if __name__ == "__main__":
 
         # update weights only after init_steps
         if not params['use_autodiff'] and step > params['T_init'] / params['dt']:
-           optimizer.step()
+            if step % params["optimizer_step_interval"] == 0:
+                optimizer.step()
+                optimizer.zero_grad()
 
         with torch.no_grad():
             # clamp dynamic parameters to positive values
@@ -273,5 +293,12 @@ if __name__ == "__main__":
         import pandas as pd
         df = pd.DataFrame(log)
         import pickle
-        with open(f'./results/lagline/{args.model}_metrics.pkl', 'wb') as f:
+        if PRECISION == "single":
+            fn = f'./results/lagline/{args.model}_metrics.pkl'
+        elif PRECISION == "half":
+            fn = f'./results/lagline/{args.model}_half_metrics.pkl'
+        else:
+            raise NotImplementedError()
+
+        with open(fn, 'wb') as f:
             pickle.dump(df, f)
