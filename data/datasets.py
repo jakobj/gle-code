@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import TensorDataset
 
 
-def get_mnist1d_splits(classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 0], padding=[36, 60], final_seq_length=40, scale_coeff=0.4, max_translation=48, iid_noise_scale=2e-2, corr_noise_scale=0.25, shear_scale=0.75):
+def get_mnist1d_splits(classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 0], padding=[36, 60], final_seq_length=40, scale_coeff=0.4, max_translation=48, iid_noise_scale=2e-2, corr_noise_scale=0.25, shear_scale=0.75, dtype=torch.float32):
 
     # using the pip package mnist1d
     from mnist1d.data import get_dataset, get_dataset_args
@@ -17,7 +17,7 @@ def get_mnist1d_splits(classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 0], padding=[36, 60],
     args.corr_noise_scale = corr_noise_scale  # scale of correlated noise
     args.shear_scale = shear_scale  # scale of shearing
     dataset = get_dataset(args, path='./data/mnist1d_data_{}.pkl'.format(final_seq_length), download=False, regenerate=False)
-    x_train, x_test = torch.Tensor(dataset['x']), torch.Tensor(dataset['x_test'])
+    x_train, x_test = torch.Tensor(dataset['x']).to(dtype=dtype), torch.Tensor(dataset['x_test']).to(dtype=dtype)
     y_train, y_test = torch.LongTensor(dataset['y']), torch.LongTensor(dataset['y_test'])
 
     train_data = TensorDataset(x_train, y_train)

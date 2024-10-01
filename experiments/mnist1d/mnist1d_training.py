@@ -13,7 +13,6 @@ def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, f
 
     for batch_idx, (data, target) in enumerate(train_loader):
         batch_loss = 0
-        data = data.float()  # (batch_size, time)
 
         if params['use_cuda']:
             data, target = data.cuda(), target.cuda()
@@ -38,6 +37,9 @@ def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, f
             output_over_time.append(output.detach())
 
             optimizer.step()
+            for p in model.parameters():
+                assert torch.all(torch.isfinite(p)), breakpoint()
+
             # average loss over steps for individual batch
             batch_loss += loss.item() / n_steps / input.shape[0]
 
@@ -76,8 +78,6 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
 
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(test_loader):
-            data = data.float()
-
             if params['use_cuda']:
                 data, target = data.cuda(), target.cuda()
 
@@ -118,7 +118,7 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
 
 def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, optimizer=None, lr_scheduler=None, use_le=True):
 
-    metrics = {metric: [] for metric in ['test_loss', 'test_acc']}
+    metrics = {metric: [] for metric in ['train_loss', 'train_acc', 'test_loss', 'test_acc']}
 
     train_loader = DataLoader(train_data, batch_size=params['batch_size'], shuffle=True)
     test_loader = DataLoader(test_data, batch_size=params['batch_size_test'], shuffle=False)
@@ -126,6 +126,7 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
     memory_type = memory
 
     if optimizer is None:
+        assert False
         optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'])
 
     test_loss, test_acc = test(params, memory_type, model, loss_fn, test_loader, epoch=0, prefix='valid', lr_scheduler=lr_scheduler)
@@ -138,6 +139,10 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
     print('Start training:')
     for epoch in range(1, params['epochs'] + 1):
         train_loss, train_acc = train(params, memory_type, model, loss_fn, train_loader, optimizer, epoch, fn_out, use_le=use_le)
+        if 'train_loss' in metrics:
+            metrics['train_loss'].append(train_loss)
+        if 'train_acc' in metrics:
+            metrics['train_acc'].append(train_acc)
         test_loss, test_acc = test(params, memory_type, model, loss_fn, test_loader, epoch=epoch, prefix='valid', lr_scheduler=lr_scheduler)
         if 'test_loss' in metrics:
             metrics['test_loss'].append(test_loss)

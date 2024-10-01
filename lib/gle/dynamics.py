@@ -198,7 +198,7 @@ class GLEDynamics():
             prosp_v = self.v + self.tau_m * v_dot
         else:
             # overwrite prospective error with instantaneous one
-            v_dot = torch.zeros_like(inst_e)
+            v_dot = torch.zeros_like(inst_e, dtype=self.dtype)
             v = inst_e.clone()
             prosp_v = inst_e.clone()
 

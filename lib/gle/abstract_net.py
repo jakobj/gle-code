@@ -19,7 +19,7 @@ class GLEAbstractNet:
 
     def _compute_target_error(self, output, target, beta):
         if target is None:
-            return torch.zeros_like(output)
+            return torch.zeros_like(output, dtype=self.dtype)
         else:
             return self.compute_target_error(output, target, beta)
 

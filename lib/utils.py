@@ -42,7 +42,7 @@ def get_loss_and_derivative(loss, output_phi=None):
         def loss_fn(output, target, *args, **kwargs):
             # one-hot encode target if necessary
             if output.shape[-1] != target.shape[-1]:
-                target = F.one_hot(target, output.shape[-1]).float()
+                target = F.one_hot(target, output.shape[-1])
             return F.mse_loss(target, output, *args, **kwargs)
         def loss_fn_deriv(self, output, target, beta):
             # one-hot encode target if necessary

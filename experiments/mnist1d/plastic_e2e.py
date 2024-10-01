@@ -47,6 +47,16 @@ if __name__ == '__main__':
         "use_cuda": True,
     }
 
+    PRECISION = "half"
+
+    if PRECISION == "single":
+        params["dtype"] = torch.float32
+        params["eps"] = 1e-8
+    elif PRECISION == "half":
+        params["dtype"] = torch.float16
+        params["eps"] = 1e-4
+    else:
+        raise NotImplementedError()
 
     torch.manual_seed(params["seed"])
     print("Using seed: {}".format(params['seed']))
@@ -63,14 +73,24 @@ if __name__ == '__main__':
     loss_fn, loss_fn_deriv = get_loss_and_derivative(params['loss_fn'], params['output_phi'])
     print("Using {} loss with {} output nonlinearity.".format(params['loss_fn'], params['output_phi']))
 
-    E2ELagMLPNet.compute_target_error = loss_fn_deriv
+    def wrapper_loss_fn(output, target, *args, **kwargs):
+        x = loss_fn(output.to(torch.float32), target, *args, **kwargs)
+        return x
+
+    def wrapper_loss_fn_deriv(self, output, target, beta):
+        x = loss_fn_deriv(self, output, target, beta)
+        if x.max() > 0.5:
+            x *= 0.9
+        return x
+
+    E2ELagMLPNet.compute_target_error = wrapper_loss_fn_deriv
 
     model = E2ELagMLPNet(dt=params['dt'], tau=params['tau'],
                          prospective_errors=params['prospective_errors'],
                          n_hidden_layers=params['hidden_layers'],
                          hidden_fast_size=params['hidden_fast_size'],
                          hidden_slow_size=params['hidden_slow_size'],
-                         phi=params['phi'], output_phi=params['output_phi'])
+                         phi=params['phi'], output_phi=params['output_phi'], dtype=params["dtype"])
 
     print(f"Using {model.hidden_layers} hidden layers with {params['hidden_fast_size']} LE and {params['hidden_slow_size']} LI units each.")
 
@@ -89,18 +109,19 @@ if __name__ == '__main__':
     memory.kwargs = {}
     print("Using memory:", memory.__name__)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"], eps=params["eps"])
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                            patience=2,
                                                            factor=0.5,
+                                                           eps=params["eps"],
                                                            verbose=True)
 
     torch.manual_seed(params['seed'])  # reset seed for reproducibility
 
     # returns metrics dictionary
-    metrics = mnist1d_run(params, memory, model, loss_fn, None,
-                          *get_mnist1d_splits(final_seq_length=params['steps_per_sample']),
+    metrics = mnist1d_run(params, memory, model, wrapper_loss_fn, None,
+                          *get_mnist1d_splits(final_seq_length=params['steps_per_sample'], dtype=params["dtype"]),
                           optimizer=optimizer, lr_scheduler=scheduler,
                           use_le=True)
 
@@ -108,7 +129,14 @@ if __name__ == '__main__':
 
     # convert metrics dict to pandas DF and dump to pickle
     df = pd.DataFrame.from_dict(metrics)
-    fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_metrics.pkl"
+
+    if PRECISION == "single":
+        fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_metrics.pkl"
+    elif PRECISION == "half":
+        fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_half_metrics.pkl"
+    else:
+        raise NotImplementedError()
+
     with open(fname, 'wb') as f:
         pickle.dump(df, f)
     print(f"Dumped metrics to: {fname}")
