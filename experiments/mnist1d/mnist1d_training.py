@@ -39,6 +39,7 @@ def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, f
             optimizer.step()
             for p in model.parameters():
                 assert torch.all(torch.isfinite(p)), breakpoint()
+            optimizer.zero_grad()
 
             # average loss over steps for individual batch
             batch_loss += loss.item() / n_steps / input.shape[0]

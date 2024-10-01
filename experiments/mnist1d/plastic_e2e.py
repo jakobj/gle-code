@@ -79,8 +79,8 @@ if __name__ == '__main__':
 
     def wrapper_loss_fn_deriv(self, output, target, beta):
         x = loss_fn_deriv(self, output, target, beta)
-        if x.max() > 0.5:
-            x *= 0.9
+        # if x.max() > 0.5:
+        #     x *= 0.5
         return x
 
     E2ELagMLPNet.compute_target_error = wrapper_loss_fn_deriv

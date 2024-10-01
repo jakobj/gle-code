@@ -63,7 +63,7 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
         # specify taus for LE and LI units
         tau_m = tau * torch.ones(hidden_size, dtype=dtype)
         tau_r = tau * torch.ones(hidden_size, dtype=dtype)
-        tau_r[:hidden_slow_size] = self.dt       # τ_r = [dt, dt, τ]
+        tau_r[:hidden_slow_size] = 2 * self.dt       # τ_r = [dt, dt, τ]
         tau_m[:hidden_slow_size // 2] = tau / 2  # τ_m = [τ/2, τ, τ]
         print("Using tau_m:", tau_m)
         print("Using tau_r:", tau_r)
@@ -108,10 +108,12 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
         # turn all variables in layers into attributes of the model
         for i, layer in enumerate(layers):
             setattr(self, f'layer_{i}', layer)
+        self.layers = layers
 
         # turn all variables in dyns into attributes of the model
         for i, dyn in enumerate(dyns):
             setattr(self, f'dyn_{i}', dyn)
+        self.dyns = dyns
 
         self.hidden_layers = n_hidden_layers
         self.dtype = dtype
