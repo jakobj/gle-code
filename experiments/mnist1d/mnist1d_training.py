@@ -133,8 +133,12 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
     test_loss, test_acc = test(params, memory_type, model, loss_fn, test_loader, epoch=0, prefix='valid', lr_scheduler=lr_scheduler)
 
     if 'test_loss' in metrics:
+        # NOTE wrong first value, necessary to make lists equally long and thus
+        # pandas happy
+        metrics['train_loss'].append(test_loss)
         metrics['test_loss'].append(test_loss)
     if 'test_acc' in metrics:
+        metrics['train_acc'].append(test_acc)  # NOTE wrong first value
         metrics['test_acc'].append(test_acc)
 
     print('Start training:')
