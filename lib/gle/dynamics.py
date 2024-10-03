@@ -224,6 +224,7 @@ class GLEDynamics():
 
         # backpropagate errors to layer below
         e_bottom = self.conn.compute_error(prosp_v)
+        e_bottom = torch.clamp(e_bottom, min=-1e2, max=1e2)
 
         # for logging only
         self.prosp_u = prosp_u.clone().detach()
