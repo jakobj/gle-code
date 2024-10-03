@@ -19,13 +19,18 @@ if __name__ == '__main__':
     # parse parameters from command line which often change
     parser = argparse.ArgumentParser(description='Train an GLE network E2E on the MNIST1D dataset.')
     parser.add_argument('--seed', type=int, default=42, help='Random seed.')
+    parser.add_argument('--epochs', type=int, default=5, help='Number of epochs.')
+    parser.add_argument('--precision', type=str, default="single", help="Precision.")
+    parser.add_argument('--lr', type=float, default=5e-3, help="Learning rate.")
+    parser.add_argument('--optimizer-step-interval', type=int, default=1, help="Optimizer step interval.")
+    parser.add_argument('--tau_r-scaling', type=float, default=1.0, help="tau_r scaling.")
     args = parser.parse_args()
 
     params = {
         # NN parameters
         "seed": args.seed,
-        "epochs": 150,
-        "lr": 5e-3,  # 5e-3 for 17 fast and 2.5e3 for 30 fast
+        "epochs": args.epochs,
+        "lr": args.lr,
         "batch_size": 100,
         "batch_size_test": 1000,
         "log_interval": 10,
@@ -45,19 +50,18 @@ if __name__ == '__main__':
         "n_updates": 1,
         "prospective_errors": True,
         "use_cuda": True,
-        "tau_r_scaling": 1.5,
+        "tau_r_scaling": args.tau_r_scaling,
+        "optimizer_step_interval": args.optimizer_step_interval,
     }
 
-    PRECISION = "half"
+    PRECISION = args.precision
 
     if PRECISION == "single":
         params["dtype"] = torch.float32
         params["eps"] = 1e-8
-        params["optimizer_step_interval"] = 1
     elif PRECISION == "half":
         params["dtype"] = torch.float16
         params["eps"] = 1e-4
-        params["optimizer_step_interval"] = 4
     else:
         raise NotImplementedError()
 
