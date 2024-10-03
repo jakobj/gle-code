@@ -6,7 +6,7 @@ from lib.visualization import plot_sliding_outputs
 from sklearn.metrics import confusion_matrix
 
 
-def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, fn_out, use_le=True):
+def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, fn_out, use_le=True, optimizer_step_interval=1):
     model.train()
     n_correct = 0
     train_loss = 0
@@ -22,7 +22,7 @@ def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, f
         n_steps = len(memory)
 
         output_over_time = []
-        for input in memory:
+        for step, input in enumerate(memory):
             optimizer.zero_grad()
             if use_le:
                 with torch.no_grad():
@@ -36,7 +36,10 @@ def train(params, MemoryClass, model, loss_fn, train_loader, optimizer, epoch, f
 
             output_over_time.append(output.detach())
 
-            optimizer.step()
+            for p in model.parameters():
+                assert torch.all(torch.isfinite(p.grad)), breakpoint()
+            if step % optimizer_step_interval == 0:
+                optimizer.step()
             for p in model.parameters():
                 assert torch.all(torch.isfinite(p)), breakpoint()
             optimizer.zero_grad()
@@ -117,7 +120,7 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
 
     return test_loss, test_acc
 
-def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, optimizer=None, lr_scheduler=None, use_le=True):
+def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, optimizer=None, lr_scheduler=None, use_le=True, optimizer_step_interval=1):
 
     metrics = {metric: [] for metric in ['train_loss', 'train_acc', 'test_loss', 'test_acc']}
 
@@ -143,7 +146,7 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
 
     print('Start training:')
     for epoch in range(1, params['epochs'] + 1):
-        train_loss, train_acc = train(params, memory_type, model, loss_fn, train_loader, optimizer, epoch, fn_out, use_le=use_le)
+        train_loss, train_acc = train(params, memory_type, model, loss_fn, train_loader, optimizer, epoch, fn_out, use_le=use_le, optimizer_step_interval=optimizer_step_interval)
         if 'train_loss' in metrics:
             metrics['train_loss'].append(train_loss)
         if 'train_acc' in metrics:

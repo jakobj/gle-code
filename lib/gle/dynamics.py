@@ -183,6 +183,8 @@ class GLEDynamics():
         of the activation function of the current layer.
 
         """
+        assert torch.all(self.tau_m >= self.dt)
+        assert torch.all(self.tau_r >= self.dt)
 
         # compute instantaneous error and scale inst_e
         # by derivative of activation function

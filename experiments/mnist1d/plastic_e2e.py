@@ -45,6 +45,7 @@ if __name__ == '__main__':
         "n_updates": 1,
         "prospective_errors": True,
         "use_cuda": True,
+        "tau_r_scaling": 1.5,
     }
 
     PRECISION = "half"
@@ -52,11 +53,15 @@ if __name__ == '__main__':
     if PRECISION == "single":
         params["dtype"] = torch.float32
         params["eps"] = 1e-8
+        params["optimizer_step_interval"] = 1
     elif PRECISION == "half":
         params["dtype"] = torch.float16
         params["eps"] = 1e-4
+        params["optimizer_step_interval"] = 4
     else:
         raise NotImplementedError()
+
+    print('Using params', params)
 
     torch.manual_seed(params["seed"])
     print("Using seed: {}".format(params['seed']))
@@ -90,7 +95,7 @@ if __name__ == '__main__':
                          n_hidden_layers=params['hidden_layers'],
                          hidden_fast_size=params['hidden_fast_size'],
                          hidden_slow_size=params['hidden_slow_size'],
-                         phi=params['phi'], output_phi=params['output_phi'], dtype=params["dtype"])
+                         phi=params['phi'], output_phi=params['output_phi'], dtype=params["dtype"], tau_r_scaling=params['tau_r_scaling'])
 
     print(f"Using {model.hidden_layers} hidden layers with {params['hidden_fast_size']} LE and {params['hidden_slow_size']} LI units each.")
 
@@ -112,7 +117,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"], eps=params["eps"])
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                           patience=2,
+                                                           patience=200,
                                                            factor=0.5,
                                                            eps=params["eps"],
                                                            verbose=True)
@@ -123,20 +128,14 @@ if __name__ == '__main__':
     metrics = mnist1d_run(params, memory, model, wrapper_loss_fn, None,
                           *get_mnist1d_splits(final_seq_length=params['steps_per_sample'], dtype=params["dtype"]),
                           optimizer=optimizer, lr_scheduler=scheduler,
-                          use_le=True)
+                          use_le=True, optimizer_step_interval=params['optimizer_step_interval'])
 
     print(f"Finished training with final test accuracy: {metrics['test_acc'][-1]:.2f}%")
 
     # convert metrics dict to pandas DF and dump to pickle
     df = pd.DataFrame.from_dict(metrics)
 
-    if PRECISION == "single":
-        fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_metrics.pkl"
-    elif PRECISION == "half":
-        fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_half_metrics.pkl"
-    else:
-        raise NotImplementedError()
-
+    fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_metrics.pkl"
     with open(fname, 'wb') as f:
         pickle.dump(df, f)
     print(f"Dumped metrics to: {fname}")
