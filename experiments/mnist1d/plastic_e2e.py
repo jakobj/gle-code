@@ -24,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=5e-3, help="Learning rate.")
     parser.add_argument('--optimizer-step-interval', type=int, default=1, help="Optimizer step interval.")
     parser.add_argument('--tau_r-scaling', type=float, default=1.0, help="tau_r scaling.")
+    parser.add_argument('--scheduler', type=str, default='plateau', help="lr scheduler.")
     args = parser.parse_args()
 
     params = {
@@ -52,6 +53,7 @@ if __name__ == '__main__':
         "use_cuda": True,
         "tau_r_scaling": args.tau_r_scaling,
         "optimizer_step_interval": args.optimizer_step_interval,
+        "scheduler": args.scheduler,
     }
 
     PRECISION = args.precision
@@ -120,11 +122,15 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"], eps=params["eps"])
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                           patience=200,
-                                                           factor=0.5,
-                                                           eps=params["eps"],
-                                                           verbose=True)
+    if params['scheduler'] == 'step':
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.75)
+    elif params['scheduler'] == 'plateau':
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                               patience=2,
+                                                               factor=0.5,
+                                                               eps=params["eps"])
+    else:
+        raise NotImplementedError()
 
     torch.manual_seed(params['seed'])  # reset seed for reproducibility
 
@@ -139,7 +145,7 @@ if __name__ == '__main__':
     # convert metrics dict to pandas DF and dump to pickle
     df = pd.DataFrame.from_dict(metrics)
 
-    fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_metrics.pkl"
+    fname = f"./results/mnist1d/plastic_e2e_norm_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_{params['scheduler']}_metrics.pkl"
     with open(fname, 'wb') as f:
         pickle.dump(df, f)
     print(f"Dumped metrics to: {fname}")

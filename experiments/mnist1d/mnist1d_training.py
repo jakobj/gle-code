@@ -106,8 +106,13 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
     test_acc = 100. * n_correct / len(test_loader.dataset)
 
     if lr_scheduler is not None and epoch > 0:
-        lr_scheduler.step(test_loss)
-        print('Using learning rate:', lr_scheduler.optimizer.param_groups[0]['lr'])
+        if isinstance(lr_scheduler, torch.optim.lr_scheduler.StepLR):
+            lr_scheduler.step()
+        elif isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            lr_scheduler.step(test_loss)
+        else:
+            raise NotImplementedError()
+        print('Using learning rate:', lr_scheduler.optimizer.param_groups[0]["lr"])
 
     print('Evaluate on', prefix, 'set: Average loss per sample: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
         test_loss, n_correct, len(test_loader.dataset), test_acc))
@@ -122,7 +127,7 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
 
 def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, optimizer=None, lr_scheduler=None, use_le=True, optimizer_step_interval=1):
 
-    metrics = {metric: [] for metric in ['train_loss', 'train_acc', 'test_loss', 'test_acc']}
+    metrics = {metric: [] for metric in ['train_loss', 'train_acc', 'test_loss', 'test_acc', 'last_lr']}
 
     train_loader = DataLoader(train_data, batch_size=params['batch_size'], shuffle=True)
     test_loader = DataLoader(test_data, batch_size=params['batch_size_test'], shuffle=False)
@@ -143,6 +148,8 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
     if 'test_acc' in metrics:
         metrics['train_acc'].append(test_acc)  # NOTE wrong first value
         metrics['test_acc'].append(test_acc)
+    if 'last_lr' in metrics:
+        metrics['last_lr'].append(lr_scheduler.optimizer.param_groups[0]["lr"])
 
     print('Start training:')
     for epoch in range(1, params['epochs'] + 1):
@@ -156,6 +163,8 @@ def mnist1d_run(params, memory, model, loss_fn, fn_out, train_data, test_data, o
             metrics['test_loss'].append(test_loss)
         if 'test_acc' in metrics:
             metrics['test_acc'].append(test_acc)
+        if 'last_lr' in metrics:
+            metrics['last_lr'].append(lr_scheduler.optimizer.param_groups[0]["lr"])
 
     if fn_out is not None:
         torch.save(model.state_dict(), fn_out.format(postfix=''))
