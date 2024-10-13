@@ -48,8 +48,11 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
 
     def __init__(self, *, dt, tau,  prospective_errors=False, n_hidden_layers=4,
                  hidden_fast_size=50, hidden_slow_size=50, gamma=0.0,
-                 phi='tanh', output_phi='linear', dtype=torch.float32, tau_r_scaling=1.0):
-        super().__init__(full_forward=False, full_backward=False, dtype=dtype)
+                 phi='tanh', output_phi='linear',
+                 dtype_parameters=torch.float32,
+                 dtype_dynamics=torch.float32,
+                 tau_r_scaling=1.0):
+        super().__init__(full_forward=False, full_backward=False, dtype_dynamics=dtype_dynamics)
 
         self.output_size = 10  # still MNIST with 10 classes
 
@@ -61,8 +64,8 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
         hidden_size = hidden_fast_size + hidden_slow_size
 
         # specify taus for LE and LI units
-        tau_m = tau * torch.ones(hidden_size, dtype=dtype)
-        tau_r = tau * torch.ones(hidden_size, dtype=dtype)
+        tau_m = tau * torch.ones(hidden_size, dtype=dtype_parameters)
+        tau_r = tau * torch.ones(hidden_size, dtype=dtype_parameters)
         tau_r[:hidden_slow_size] = tau_r_scaling * self.dt       # τ_r = [dt, dt, τ]
         tau_m[:hidden_slow_size // 2] = tau / 2  # τ_m = [τ/2, τ, τ]
         print("Using tau_m:", tau_m)
@@ -77,33 +80,36 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
         dyns = []
 
         # input layer
-        layer = GLELinear(1, hidden_size, dtype=dtype)
+        layer = GLELinear(1, hidden_size, dtype=dtype_parameters)
         layers.append(layer)
         dyns.append(GLEDynamics(layer, dt=self.dt, tau_m=self.tau_m,
                                 tau_r=self.tau_r,
                                 prospective_errors=prospective_errors,
-                                dtype=dtype))
+                                dtype_parameters=dtype_parameters,
+                                dtype_dynamics=dtype_dynamics))
 
         # half lagged, half instantaneous
         for i in range(n_hidden_layers - 1):
-            layer = GLELinear(hidden_size, hidden_size, dtype=dtype)
+            layer = GLELinear(hidden_size, hidden_size, dtype=dtype_parameters)
             layers.append(layer)
             dyns.append(GLEDynamics(layer, dt=self.dt, tau_m=self.tau_m,
                                     tau_r=self.tau_r, gamma=gamma, phi=self.phi,
                                     phi_prime=self.phi_prime,
                                     prospective_errors=prospective_errors,
-                                    dtype=dtype))
+                                    dtype_parameters=dtype_parameters,
+                                    dtype_dynamics=dtype_dynamics))
 
         # instantaneous output layer
-        layer = GLELinear(hidden_size, self.output_size, dtype=dtype)
+        layer = GLELinear(hidden_size, self.output_size, dtype=dtype_parameters)
         layers.append(layer)
         dyns.append(GLEDynamics(layer, dt=self.dt,
-                                tau_m=torch.ones(self.output_size, dtype=dtype) * tau,
-                                tau_r=torch.ones(self.output_size, dtype=dtype) * tau,
+                                tau_m=torch.ones(self.output_size, dtype=dtype_parameters) * tau,
+                                tau_r=torch.ones(self.output_size, dtype=dtype_parameters) * tau,
                                 gamma=gamma, phi=self.output_phi,
                                 phi_prime=self.output_phi_prime,
                                 prospective_errors=prospective_errors,
-                                dtype=dtype))
+                                dtype_parameters=dtype_parameters,
+                                dtype_dynamics=dtype_dynamics))
 
         # turn all variables in layers into attributes of the model
         for i, layer in enumerate(layers):
@@ -116,7 +122,8 @@ class E2ELagMLPNet(GLEAbstractNet, torch.nn.Module):
         self.dyns = dyns
 
         self.hidden_layers = n_hidden_layers
-        self.dtype = dtype
+        self.dtype_parameters = dtype_parameters
+        self.dtype_dynamics = dtype_dynamics
 
         print("Initialized {} model with {} parameters".format(self.__class__.__name__, self.count_params()))
 

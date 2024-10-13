@@ -20,7 +20,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train an GLE network E2E on the MNIST1D dataset.')
     parser.add_argument('--seed', type=int, default=42, help='Random seed.')
     parser.add_argument('--epochs', type=int, default=5, help='Number of epochs.')
-    parser.add_argument('--precision', type=str, default="single", help="Precision.")
+    parser.add_argument('--precision-parameters', type=str, default="single", help="Precision for parameters.")
+    parser.add_argument('--precision-dynamics', type=str, default="single", help="Precision for dynamic variables.")
     parser.add_argument('--lr', type=float, default=5e-3, help="Learning rate.")
     parser.add_argument('--optimizer-step-interval', type=int, default=1, help="Optimizer step interval.")
     parser.add_argument('--tau_r-scaling', type=float, default=1.0, help="tau_r scaling.")
@@ -56,13 +57,18 @@ if __name__ == '__main__':
         "scheduler": args.scheduler,
     }
 
-    PRECISION = args.precision
+    if args.precision_dynamics == "single":
+        params["dtype_dynamics"] = torch.float32
+    elif args.precision_dynamics == "half":
+        params["dtype_dynamics"] = torch.float16
+    else:
+        raise NotImplementedError()
 
-    if PRECISION == "single":
-        params["dtype"] = torch.float32
+    if args.precision_parameters == "single":
+        params["dtype_parameters"] = torch.float32
         params["eps"] = 1e-8
-    elif PRECISION == "half":
-        params["dtype"] = torch.float16
+    elif args.precision_parameters == "half":
+        params["dtype_parameters"] = torch.float16
         params["eps"] = 1e-4
     else:
         raise NotImplementedError()
@@ -101,7 +107,10 @@ if __name__ == '__main__':
                          n_hidden_layers=params['hidden_layers'],
                          hidden_fast_size=params['hidden_fast_size'],
                          hidden_slow_size=params['hidden_slow_size'],
-                         phi=params['phi'], output_phi=params['output_phi'], dtype=params["dtype"], tau_r_scaling=params['tau_r_scaling'])
+                         phi=params['phi'], output_phi=params['output_phi'],
+                         dtype_parameters=params["dtype_parameters"],
+                         dtype_dynamics=params["dtype_dynamics"],
+                         tau_r_scaling=params['tau_r_scaling'])
 
     print(f"Using {model.hidden_layers} hidden layers with {params['hidden_fast_size']} LE and {params['hidden_slow_size']} LI units each.")
 
@@ -137,7 +146,7 @@ if __name__ == '__main__':
 
     # returns metrics dictionary
     metrics = mnist1d_run(params, memory, model, wrapper_loss_fn, None,
-                          *get_mnist1d_splits(final_seq_length=params['steps_per_sample'], dtype=params["dtype"]),
+                          *get_mnist1d_splits(final_seq_length=params['steps_per_sample'], dtype=params["dtype_dynamics"]),
                           optimizer=optimizer, lr_scheduler=scheduler,
                           use_le=True, optimizer_step_interval=params['optimizer_step_interval'])
 

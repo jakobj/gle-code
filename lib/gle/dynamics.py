@@ -5,7 +5,8 @@ class GLEDynamics():
 
     def __init__(self, conn, *, tau_m, tau_r=None, dt=None, phi=None,
                  phi_prime=None, prospective_errors=False, use_autodiff=False,
-                 learn_tau=False, gamma=0.0, dtype=torch.float32):
+                 learn_tau=False, gamma=0.0, dtype_parameters=torch.float32,
+                 dtype_dynamics=torch.float32):
         super().__init__()
 
         self.dt = dt
@@ -14,20 +15,20 @@ class GLEDynamics():
 
         if tau_m is not None:
             if isinstance(tau_m, torch.Tensor):
-                self.tau_m = tau_m.clone()
+                self.tau_m = tau_m.clone().to(dtype_parameters)
             else:
-                self.tau_m = torch.tensor(tau_m, dtype=dtype)
+                self.tau_m = torch.tensor(tau_m, dtype=dtype_parameters)
         else:
             raise ValueError("τ_m must be specified")
 
         if tau_r is not None:
             if isinstance(tau_r, torch.Tensor):
-                self.tau_r = tau_r.clone()
+                self.tau_r = tau_r.clone().to(dtype_parameters)
             else:
-                self.tau_r = torch.tensor(tau_r, dtype=dtype)
+                self.tau_r = torch.tensor(tau_r, dtype=dtype_parameters)
         elif self.tau_m is not None:
             # default to τ_m if τ_r is not specified (LE)
-            self.tau_r = self.tau_m.clone()
+            self.tau_r = self.tau_m.clone().to(dtype_parameters)
         else:
             raise ValueError("τ_r must be specified")
 
@@ -74,7 +75,8 @@ class GLEDynamics():
         self.next_e_bottom = None
 
         self.device = torch.device("cpu")
-        self.dtype = dtype
+        self.dtype_parameters = dtype_parameters
+        self.dtype_dynamics = dtype_dynamics
 
     def adjust_batch_dimension(self, batch_size):
         assert len(self.u) == len(self.v)
@@ -126,11 +128,11 @@ class GLEDynamics():
 
         inst_s = self.conn(r_bottom)
 
-        self.u = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
-        self.v = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
-        self.r = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
-        self.r_prime = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype)
-        self.e_bottom = torch.zeros(r_bottom.shape, device=self.device, dtype=self.dtype)
+        self.u = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype_dynamics)
+        self.v = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype_dynamics)
+        self.r = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype_dynamics)
+        self.r_prime = torch.zeros(inst_s.shape, device=self.device, dtype=self.dtype_dynamics)
+        self.e_bottom = torch.zeros(r_bottom.shape, device=self.device, dtype=self.dtype_dynamics)
         return inst_s
 
     def _detach_dynamic_variables(self):
@@ -200,7 +202,7 @@ class GLEDynamics():
             prosp_v = self.v + self.tau_m * v_dot
         else:
             # overwrite prospective error with instantaneous one
-            v_dot = torch.zeros_like(inst_e, dtype=self.dtype)
+            v_dot = torch.zeros_like(inst_e, dtype=self.dtype_dynamics)
             v = inst_e.clone()
             prosp_v = inst_e.clone()
 
