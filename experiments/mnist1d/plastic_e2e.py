@@ -131,6 +131,7 @@ if __name__ == '__main__':
                                                                eps=params["eps"])
     else:
         raise NotImplementedError()
+    scheduler.min_lr = 1e-5
 
     torch.manual_seed(params['seed'])  # reset seed for reproducibility
 
@@ -145,7 +146,7 @@ if __name__ == '__main__':
     # convert metrics dict to pandas DF and dump to pickle
     df = pd.DataFrame.from_dict(metrics)
 
-    fname = f"./results/mnist1d/plastic_e2e_norm_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_{params['scheduler']}_metrics.pkl"
+    fname = f"./results/mnist1d/plastic_e2e_norm100_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_{params['scheduler']}_{scheduler.min_lr}_metrics.pkl"
     with open(fname, 'wb') as f:
         pickle.dump(df, f)
     print(f"Dumped metrics to: {fname}")

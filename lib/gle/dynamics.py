@@ -224,8 +224,12 @@ class GLEDynamics():
 
         # backpropagate errors to layer below
         e_bottom = self.conn.compute_error(prosp_v)
+
+        # clamp values
         # e_bottom = torch.clamp(e_bottom, min=-1e3, max=1e3)
-        scale = min(1., (1000./(torch.norm(e_bottom) + 1e-4)))
+
+        # clamp norm
+        scale = min(1., (100./(torch.norm(e_bottom) + 1e-4)))
         e_bottom = scale * e_bottom
 
         # for logging only

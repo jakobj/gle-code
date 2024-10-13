@@ -105,7 +105,7 @@ def test(params, MemoryClass, model, loss_fn, test_loader, epoch=0, prefix='vali
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * n_correct / len(test_loader.dataset)
 
-    if lr_scheduler is not None and epoch > 0:
+    if lr_scheduler is not None and epoch > 0 and lr_scheduler.optimizer.param_groups[0]["lr"] > lr_scheduler.min_lr:
         if isinstance(lr_scheduler, torch.optim.lr_scheduler.StepLR):
             lr_scheduler.step()
         elif isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
