@@ -155,7 +155,7 @@ if __name__ == '__main__':
     # convert metrics dict to pandas DF and dump to pickle
     df = pd.DataFrame.from_dict(metrics)
 
-    fname = f"./results/mnist1d/plastic_e2e_norm100_{params['seed']}_{PRECISION}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_{params['scheduler']}_{scheduler.min_lr}_metrics.pkl"
+    fname = f"./results/mnist1d/plastic_e2e_{params['seed']}_{args.precision_parameters}_{args.precision_dynamics}_{params['lr']}_{params['optimizer_step_interval']}_{params['tau_r_scaling']}_{params['scheduler']}_{scheduler.min_lr}_metrics.pkl"
     with open(fname, 'wb') as f:
         pickle.dump(df, f)
     print(f"Dumped metrics to: {fname}")
