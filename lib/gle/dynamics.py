@@ -187,6 +187,8 @@ class GLEDynamics():
         """
         assert torch.all(self.tau_m >= self.dt)
         assert torch.all(self.tau_r >= self.dt)
+        assert r_bottom.dtype == self.dtype_dynamics
+        assert inst_e.dtype == self.dtype_dynamics
 
         # compute instantaneous error and scale inst_e
         # by derivative of activation function
@@ -197,9 +199,9 @@ class GLEDynamics():
 
         # prospective errors
         if self.prospective_errors and self.tau_r is not None:
-            v_dot = (inst_e - self.v) / self.tau_r
+            v_dot = (inst_e - self.v) / self.tau_r.to(self.dtype_dynamics)
             v = self.v + self.dt * v_dot
-            prosp_v = self.v + self.tau_m * v_dot
+            prosp_v = self.v + self.tau_m.to(self.dtype_dynamics) * v_dot
         else:
             # overwrite prospective error with instantaneous one
             v_dot = torch.zeros_like(inst_e, dtype=self.dtype_dynamics)
@@ -208,9 +210,9 @@ class GLEDynamics():
 
         # membrane integration
         if self.tau_m is not None:
-            u_dot = (inst_s + self.gamma * prosp_v - self.u) / self.tau_m
+            u_dot = (inst_s + self.gamma * prosp_v - self.u) / self.tau_m.to(self.dtype_dynamics)
             u = self.u + self.dt * u_dot
-            prosp_u = self.u + self.tau_r * u_dot
+            prosp_u = self.u + self.tau_r.to(self.dtype_dynamics) * u_dot
         else:
             u = inst_s + self.gamma * prosp_v
             prosp_u = inst_s + self.gamma * prosp_v
@@ -247,6 +249,8 @@ class GLEDynamics():
         self.next_r, self.next_r_prime = r, r_prime
         self.next_e_bottom = e_bottom
 
+        assert r.dtype == self.dtype_dynamics
+        assert e_bottom.dtype == self.dtype_dynamics
         return r, e_bottom
 
     def _apply(self, fn):
